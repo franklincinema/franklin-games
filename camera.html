@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Kamera tutish</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0e1118;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-weight:700;font-size:18px}
+  #hud b{color:#ffaa00}
+  canvas{flex:1;width:100%;display:block}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,17,24,.88);text-align:center;padding:24px;gap:12px}
+  #ov h1{margin:0;font-size:30px;color:#ffaa00}
+  #ov p{margin:0;color:#c8cdd7;font-size:16px;line-height:1.4;max-width:320px}
+  button{background:#ffaa00;color:#14161c;border:0;border-radius:14px;padding:14px 34px;font-size:18px;font-weight:800}
+  a.back{position:fixed;right:12px;top:48px;color:#8a92a3;font-size:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud"><span>Ball: <b id="sc">0</b></span><span id="lv">❤️❤️❤️</span><span>Rekord: <b id="bs">0</b></span></div>
+  <canvas id="c"></canvas>
+</div>
+<div id="ov">
+  <h1>📷 Kamera tutish</h1>
+  <p>Tushayotgan kamera, telefon va mikrofonni savatda tuting. 💣 va 🗑 dan qoching! Savatni barmoq bilan suring.</p>
+  <button id="go">Boshlash</button>
+</div>
+<a class="back" href="index.html">← O'yinlar</a>
+<script>
+try{Telegram.WebApp.ready();Telegram.WebApp.expand();}catch(e){}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let W,H,dpr;
+function fit(){dpr=window.devicePixelRatio||1;const r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+window.addEventListener('resize',fit);fit();
+function lsGet(k){try{return +localStorage.getItem(k)||0}catch(e){return 0}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+let best=lsGet('cam_best');$('bs').textContent=best;
+let running=false,score=0,lives=3,items=[],px=0,tick=0,spawnT=0,over=false;
+const GOOD=[['📷',1],['📱',1],['🎤',2],['🎬',2]],BAD=['💣','🗑'];
+const BW=90,BH=34;
+function reset(){score=0;lives=3;items=[];tick=0;spawnT=0;over=false;px=W/2;draw_hud();}
+function draw_hud(){$('sc').textContent=score;$('lv').textContent='❤️'.repeat(Math.max(lives,0))||'💔';}
+function move(x){const r=cv.getBoundingClientRect();px=Math.min(W-BW/2,Math.max(BW/2,x-r.left));}
+cv.addEventListener('touchmove',e=>{move(e.touches[0].clientX);e.preventDefault()},{passive:false});
+cv.addEventListener('touchstart',e=>{move(e.touches[0].clientX)},{passive:true});
+cv.addEventListener('mousemove',e=>{if(e.buttons||true)move(e.clientX)});
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')px=Math.max(BW/2,px-30);if(e.key==='ArrowRight')px=Math.min(W-BW/2,px+30)});
+function spawn(){
+  const bad=Math.random()<Math.min(0.18+tick/6000,0.38);
+  const it={x:20+Math.random()*(W-40),y:-20,bad,vy:2.2+tick/900+Math.random()*1.2,s:34};
+  if(bad){it.e=BAD[Math.random()*BAD.length|0];it.p=0}else{const g=GOOD[Math.random()*GOOD.length|0];it.e=g[0];it.p=g[1]}
+  items.push(it);
+}
+function step(){
+  if(!running)return;
+  tick++;spawnT--;
+  if(spawnT<=0){spawn();spawnT=Math.max(18,50-tick/60)}
+  const by=H-BH-18;
+  for(const it of items){
+    it.y+=it.vy;
+    if(!it.done&&it.y>by-10&&it.y<by+BH&&Math.abs(it.x-px)<BW/2+8){
+      it.done=true;
+      if(it.bad){lives--;navigator.vibrate&&navigator.vibrate(60)}else{score+=it.p}
+      draw_hud();
+    }
+    if(it.y>H+30){if(!it.done&&!it.bad){lives--;draw_hud()}it.done=true}
+  }
+  items=items.filter(i=>!i.done);
+  if(lives<=0)end();
+}
+function end(){
+  running=false;over=true;
+  if(score>best){best=score;lsSet('cam_best',best);$('bs').textContent=best}
+  $('ov').style.display='flex';
+  $('ov').querySelector('h1').textContent='O\'yin tugadi';
+  $('ov').querySelector('p').textContent='Natija: '+score+' ball. Rekord: '+best+'.';
+  $('go').textContent='Qayta o\'ynash';
+  try{Telegram.WebApp.HapticFeedback.notificationOccurred('error')}catch(e){}
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#141824');g.addColorStop(1,'#1d2336');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='34px serif';
+  for(const it of items)ctx.fillText(it.e,it.x,it.y);
+  const by=H-BH-18;
+  ctx.fillStyle='#ffaa00';
+  ctx.beginPath();ctx.roundRect(px-BW/2,by,BW,BH,10);ctx.fill();
+  ctx.fillStyle='#14161c';ctx.font='bold 13px sans-serif';ctx.fillText('FRANKLIN',px,by+BH/2);
+}
+function loop(){step();draw();requestAnimationFrame(loop)}
+$('go').onclick=()=>{reset();$('ov').style.display='none';running=true};
+reset();loop();
+</script>
+</body>
+</html>
