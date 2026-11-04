@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>2048</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0e1118;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center}
+  #hud{width:100%;display:flex;justify-content:space-between;padding:12px 16px;box-sizing:border-box;font-weight:700;font-size:18px}
+  #hud b{color:#ffaa00}
+  #board{--s:min(88vw,420px);width:var(--s);height:var(--s);background:#1b2133;border-radius:14px;padding:8px;box-sizing:border-box;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:8px;margin-top:14px}
+  .t{border-radius:10px;background:#252c42;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:calc(var(--s)/10);color:#14161c}
+  .t[data-v="2"]{background:#ffe9b3}.t[data-v="4"]{background:#ffdb80}.t[data-v="8"]{background:#ffc54d}.t[data-v="16"]{background:#ffb21f}.t[data-v="32"]{background:#ff9a1f}
+  .t[data-v="64"]{background:#ff7b1f;color:#fff}.t[data-v="128"]{background:#ff5a2a;color:#fff;font-size:calc(var(--s)/12)}.t[data-v="256"]{background:#e8421f;color:#fff;font-size:calc(var(--s)/12)}
+  .t[data-v="512"]{background:#c92f55;color:#fff;font-size:calc(var(--s)/12)}.t[data-v="1024"]{background:#8f2fc9;color:#fff;font-size:calc(var(--s)/14)}.t[data-v="2048"]{background:#2f6fc9;color:#fff;font-size:calc(var(--s)/14)}
+  #msg{margin-top:14px;color:#c8cdd7;font-size:15px;text-align:center;padding:0 24px}
+  #new{margin-top:12px;background:#ffaa00;color:#14161c;border:0;border-radius:14px;padding:12px 28px;font-size:16px;font-weight:800}
+  a.back{position:fixed;left:12px;bottom:12px;color:#8a92a3;font-size:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud"><span>Ball: <b id="sc">0</b></span><span>Rekord: <b id="bs">0</b></span></div>
+  <div id="board"></div>
+  <div id="msg">Barmoq bilan suring: bir xil raqamlar birlashadi. 2048 ga yeting!</div>
+  <button id="new">Yangi o'yin</button>
+</div>
+<a class="back" href="index.html">← O'yinlar</a>
+<script>
+try{Telegram.WebApp.ready();Telegram.WebApp.expand();}catch(e){}
+const $=id=>document.getElementById(id);
+function lsGet(k){try{return +localStorage.getItem(k)||0}catch(e){return 0}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+let best=lsGet('g2048_best');$('bs').textContent=best;
+let g,score,over;
+function empty(){return[...Array(4)].map(()=>[0,0,0,0])}
+function add(){const e=[];g.forEach((r,i)=>r.forEach((v,j)=>{if(!v)e.push([i,j])}));if(!e.length)return;const[a,b]=e[Math.random()*e.length|0];g[a][b]=Math.random()<.9?2:4}
+function start(){g=empty();score=0;over=false;add();add();render();$('msg').textContent='Barmoq bilan suring: bir xil raqamlar birlashadi. 2048 ga yeting!'}
+function render(){
+  const b=$('board');b.innerHTML='';
+  g.forEach(r=>r.forEach(v=>{const d=document.createElement('div');d.className='t';if(v){d.dataset.v=v;d.textContent=v}b.appendChild(d)}));
+  $('sc').textContent=score;
+  if(score>best){best=score;lsSet('g2048_best',best);$('bs').textContent=best}
+}
+function slide(row){
+  let a=row.filter(Boolean),gain=0;
+  for(let i=0;i<a.length-1;i++){if(a[i]===a[i+1]){a[i]*=2;gain+=a[i];a.splice(i+1,1)}}
+  while(a.length<4)a.push(0);return[a,gain];
+}
+function move(dir){
+  if(over)return;
+  const before=JSON.stringify(g);let gain=0;
+  const get=(i,j)=>dir==='l'?g[i][j]:dir==='r'?g[i][3-j]:dir==='u'?g[j][i]:g[3-j][i];
+  const set=(i,j,v)=>{if(dir==='l')g[i][j]=v;else if(dir==='r')g[i][3-j]=v;else if(dir==='u')g[j][i]=v;else g[3-j][i]=v};
+  for(let i=0;i<4;i++){const[r,gn]=slide([0,1,2,3].map(j=>get(i,j)));gain+=gn;r.forEach((v,j)=>set(i,j,v))}
+  if(JSON.stringify(g)===before)return;
+  score+=gain;add();render();
+  try{Telegram.WebApp.HapticFeedback.impactOccurred('light')}catch(e){}
+  if(g.flat().includes(2048)){$('msg').textContent='🎉 Tabriklaymiz, 2048 ga yetdingiz!'}
+  if(!canMove()){over=true;$('msg').textContent="O'yin tugadi. Natija: "+score}
+}
+function canMove(){for(let i=0;i<4;i++)for(let j=0;j<4;j++){if(!g[i][j])return true;if(j<3&&g[i][j]===g[i][j+1])return true;if(i<3&&g[i][j]===g[i+1][j])return true}return false}
+let sx,sy;
+addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?'r':'l');else move(dy>0?'d':'u')},{passive:true});
+addEventListener('keydown',e=>{const k={ArrowLeft:'l',ArrowRight:'r',ArrowUp:'u',ArrowDown:'d'}[e.key];if(k)move(k)});
+$('new').onclick=start;start();
+</script>
+</body>
+</html>
