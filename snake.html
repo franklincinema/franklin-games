@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Ilon</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0e1118;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center}
+  #hud{width:100%;display:flex;justify-content:space-between;padding:12px 16px;box-sizing:border-box;font-weight:700;font-size:18px}
+  #hud b{color:#ffaa00}
+  canvas{border-radius:12px;background:#171c2b;margin-top:6px}
+  #pad{display:grid;grid-template-columns:repeat(3,70px);grid-template-rows:repeat(2,64px);gap:8px;margin-top:18px}
+  #pad button{background:#232a3f;color:#ffaa00;border:0;border-radius:14px;font-size:26px}
+  #pad .u{grid-column:2;grid-row:1}#pad .l{grid-column:1;grid-row:2}#pad .d{grid-column:2;grid-row:2}#pad .r{grid-column:3;grid-row:2}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,17,24,.9);text-align:center;padding:24px;gap:12px}
+  #ov h1{margin:0;font-size:30px;color:#ffaa00}
+  #ov p{margin:0;color:#c8cdd7;font-size:16px;line-height:1.4;max-width:320px}
+  #go{background:#ffaa00;color:#14161c;border:0;border-radius:14px;padding:14px 34px;font-size:18px;font-weight:800}
+  a.back{position:fixed;left:12px;bottom:12px;color:#8a92a3;font-size:14px;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud"><span>Ball: <b id="sc">0</b></span><span>Rekord: <b id="bs">0</b></span></div>
+  <canvas id="c"></canvas>
+  <div id="pad"><button class="u" data-d="u">▲</button><button class="l" data-d="l">◀</button><button class="d" data-d="d">▼</button><button class="r" data-d="r">▶</button></div>
+</div>
+<div id="ov"><h1>🐍 Ilon</h1><p>Oziqani yeng, devor va o'zingizga urilmang. Barmoq bilan suring yoki tugmalarni bosing.</p><button id="go">Boshlash</button></div>
+<a class="back" href="index.html">← O'yinlar</a>
+<script>
+try{Telegram.WebApp.ready();Telegram.WebApp.expand();}catch(e){}
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const N=18;let S,dpr=window.devicePixelRatio||1;
+function fit(){S=Math.floor(Math.min(innerWidth-24,innerHeight-300,420)/N)*N;S=Math.max(S,N*12);cv.style.width=S+'px';cv.style.height=S+'px';cv.width=S*dpr;cv.height=S*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+fit();addEventListener('resize',fit);
+function lsGet(k){try{return +localStorage.getItem(k)||0}catch(e){return 0}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+let best=lsGet('snake_best');$('bs').textContent=best;
+let snake,dir,next,food,score,timer,speed,running=false;
+function reset(){snake=[{x:9,y:9},{x:8,y:9},{x:7,y:9}];dir={x:1,y:0};next=dir;score=0;speed=150;placeFood();$('sc').textContent=0;}
+function placeFood(){do{food={x:Math.random()*N|0,y:Math.random()*N|0}}while(snake.some(s=>s.x===food.x&&s.y===food.y));}
+function setDir(d){const m={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]}[d];if(m[0]===-dir.x&&m[1]===-dir.y)return;next={x:m[0],y:m[1]};}
+document.querySelectorAll('#pad button').forEach(b=>b.addEventListener('touchstart',e=>{setDir(b.dataset.d);e.preventDefault()},{passive:false}));
+document.querySelectorAll('#pad button').forEach(b=>b.addEventListener('mousedown',()=>setDir(b.dataset.d)));
+addEventListener('keydown',e=>{const k={ArrowUp:'u',ArrowDown:'d',ArrowLeft:'l',ArrowRight:'r'}[e.key];if(k)setDir(k)});
+let sx,sy;
+addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?'r':'l');else setDir(dy>0?'d':'u')},{passive:true});
+function step(){
+  dir=next;
+  const h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(h.x<0||h.y<0||h.x>=N||h.y>=N||snake.some(s=>s.x===h.x&&s.y===h.y))return end();
+  snake.unshift(h);
+  if(h.x===food.x&&h.y===food.y){score++;$('sc').textContent=score;speed=Math.max(70,speed-4);placeFood();try{Telegram.WebApp.HapticFeedback.impactOccurred('light')}catch(e){}}
+  else snake.pop();
+  draw();timer=setTimeout(step,speed);
+}
+function draw(){
+  const c=S/N;ctx.clearRect(0,0,S,S);
+  ctx.fillStyle='#171c2b';ctx.fillRect(0,0,S,S);
+  ctx.font=(c*0.9)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('📷',(food.x+.5)*c,(food.y+.55)*c);
+  snake.forEach((s,i)=>{ctx.fillStyle=i?'#ffaa00':'#ffd36b';ctx.beginPath();ctx.roundRect(s.x*c+1,s.y*c+1,c-2,c-2,5);ctx.fill();});
+}
+function end(){
+  running=false;clearTimeout(timer);
+  if(score>best){best=score;lsSet('snake_best',best);$('bs').textContent=best}
+  $('ov').style.display='flex';$('ov').querySelector('h1').textContent="O'yin tugadi";
+  $('ov').querySelector('p').textContent='Natija: '+score+'. Rekord: '+best+'.';$('go').textContent="Qayta o'ynash";
+  try{Telegram.WebApp.HapticFeedback.notificationOccurred('error')}catch(e){}
+}
+$('go').onclick=()=>{reset();$('ov').style.display='none';running=true;draw();clearTimeout(timer);timer=setTimeout(step,speed)};
+reset();draw();
+</script>
+</body>
+</html>
