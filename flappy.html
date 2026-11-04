@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Uchuvchi kamera</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0e1118;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{display:flex;justify-content:space-between;padding:12px 16px;font-weight:700;font-size:18px}
+  #hud b{color:#ffaa00}
+  canvas{flex:1;width:100%;display:block}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(14,17,24,.9);text-align:center;padding:24px;gap:12px}
+  #ov h1{margin:0;font-size:30px;color:#ffaa00}
+  #ov p{margin:0;color:#c8cdd7;font-size:16px;line-height:1.4;max-width:320px}
+  #go{background:#ffaa00;color:#14161c;border:0;border-radius:14px;padding:14px 34px;font-size:18px;font-weight:800}
+  a.back{position:fixed;left:12px;bottom:12px;color:#8a92a3;font-size:14px;text-decoration:none;z-index:2}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="hud"><span>Ball: <b id="sc">0</b></span><span>Rekord: <b id="bs">0</b></span></div><canvas id="c"></canvas></div>
+<div id="ov"><h1>🎥 Uchuvchi kamera</h1><p>Ekranni bosib kamerani ko'taring. Quvurlar orasidan o'ting, ularga tegmang.</p><button id="go">Boshlash</button></div>
+<a class="back" href="index.html">← O'yinlar</a>
+<script>
+try{Telegram.WebApp.ready();Telegram.WebApp.expand();}catch(e){}
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');let W,H;
+function fit(){const d=window.devicePixelRatio||1,r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);}
+fit();addEventListener('resize',fit);
+function lsGet(k){try{return +localStorage.getItem(k)||0}catch(e){return 0}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+let best=lsGet('flap_best');$('bs').textContent=best;
+let y,vy,pipes,score,frame,running=false,raf;
+const G=0.42,JUMP=-7.2,PW=58,GAP=170,X=W=>W*0.28;
+function reset(){y=H/2;vy=0;pipes=[];score=0;frame=0;$('sc').textContent=0;}
+function flap(){if(running){vy=JUMP;try{Telegram.WebApp.HapticFeedback.impactOccurred('light')}catch(e){}}}
+cv.addEventListener('touchstart',e=>{flap();e.preventDefault()},{passive:false});
+cv.addEventListener('mousedown',flap);
+addEventListener('keydown',e=>{if(e.code==='Space')flap()});
+function step(){
+  frame++;vy+=G;y+=vy;
+  if(frame%95===1){const top=60+Math.random()*(H-GAP-140);pipes.push({x:W,top,passed:false})}
+  const sp=2.6+Math.min(score/40,1.6);
+  for(const p of pipes){p.x-=sp;
+    if(!p.passed&&p.x+PW<X(W)){p.passed=true;score++;$('sc').textContent=score}
+    const cx=X(W);
+    if(cx+14>p.x&&cx-14<p.x+PW&&(y-14<p.top||y+14>p.top+GAP))return end();
+  }
+  pipes=pipes.filter(p=>p.x>-PW-10);
+  if(y>H-14||y<-20)return end();
+}
+function draw(){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#141a2c');g.addColorStop(1,'#26324f');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffaa00';
+  for(const p of pipes){ctx.fillRect(p.x,0,PW,p.top);ctx.fillRect(p.x,p.top+GAP,PW,H);ctx.fillStyle='#ffc54d';ctx.fillRect(p.x-4,p.top-16,PW+8,16);ctx.fillRect(p.x-4,p.top+GAP,PW+8,16);ctx.fillStyle='#ffaa00'}
+  ctx.save();ctx.translate(X(W),y);ctx.rotate(Math.max(-0.5,Math.min(0.9,vy/12)));ctx.font='34px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🎥',0,0);ctx.restore();
+}
+function loop(){if(running)step();draw();raf=requestAnimationFrame(loop)}
+function end(){
+  running=false;
+  if(score>best){best=score;lsSet('flap_best',best);$('bs').textContent=best}
+  $('ov').style.display='flex';$('ov').querySelector('h1').textContent="O'yin tugadi";
+  $('ov').querySelector('p').textContent='Natija: '+score+'. Rekord: '+best+'.';$('go').textContent="Qayta o'ynash";
+  try{Telegram.WebApp.HapticFeedback.notificationOccurred('error')}catch(e){}
+}
+$('go').onclick=()=>{reset();$('ov').style.display='none';running=true;vy=JUMP};
+reset();loop();
+</script>
+</body>
+</html>
